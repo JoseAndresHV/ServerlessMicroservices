@@ -7,6 +7,11 @@ using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using MovementService.Models;
+using MovementService.Services;
+using Microsoft.Azure.Cosmos;
+using System.Configuration;
+using Azure.Messaging.ServiceBus;
 
 namespace MovementService
 {
@@ -14,22 +19,51 @@ namespace MovementService
     {
         [FunctionName("Withdrawal")]
         public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "withdrawal")] Transaction transaction,
+            [CosmosDB(Connection = "CosmosDBConnection")] CosmosClient client,
             ILogger log)
         {
-            log.LogInformation("C# HTTP trigger function processed a request.");
+            var accountService = new AccountService(Environment.GetEnvironmentVariable("AccountServiceApiUrl"));
+            var account = await accountService.Get(transaction.AccountId);
 
-            string name = req.Query["name"];
+            if (account == null)
+            {
+                return new OkObjectResult(
+                    new Models.Response<Account>
+                    {
+                        Success = false,
+                        Data = null,
+                        Message = "Account not found"
+                    });
+            }
 
-            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-            dynamic data = JsonConvert.DeserializeObject(requestBody);
-            name = name ?? data?.name;
+            var container = client.GetDatabase("MovementDb").GetContainer("Movements");
+            var transactionService = new TransactionService(container, accountService);
+            var movement = await transactionService.Withdrawal(account, transaction);
 
-            string responseMessage = string.IsNullOrEmpty(name)
-                ? "This HTTP triggered function executed successfully. Pass a name in the query string or in the request body for a personalized response."
-                : $"Hello, {name}. This HTTP triggered function executed successfully.";
+            if (movement == null)
+            {
+                return new OkObjectResult(
+                    new Models.Response<Movement>
+                    {
+                        Success = false,
+                        Data = null,
+                        Message = "Not enough money"
+                    });
+            }
 
-            return new OkObjectResult(responseMessage);
+            var serviceBusClient = new ServiceBusClient(Environment.GetEnvironmentVariable("ServiceBusConnection"));
+            var publisher = new MessagePublisher(serviceBusClient);
+            await publisher.Publish("queue", movement);
+
+            return new OkObjectResult(
+                    new Models.Response<Movement>
+                    {
+                        Success = true,
+                        Data = movement,
+                        Message = "Withdrawal registered"
+                    });
         }
     }
 }
+
