@@ -29,7 +29,8 @@ namespace AccountService
                 new Models.Response<Account>
                 {
                     Success = account.Exists,
-                    Data = account.Data
+                    Data = account.Data,
+                    Message = "Account updated"
                 });
         }
     }

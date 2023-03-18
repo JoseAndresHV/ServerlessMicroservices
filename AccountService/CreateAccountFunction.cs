@@ -29,7 +29,8 @@ namespace AccountService
                 new Models.Response<Account>
                 {
                     Success = true,
-                    Data = account
+                    Data = account,
+                    Message = "Account created"
                 });
         }
     }
