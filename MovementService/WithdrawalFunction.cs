@@ -54,7 +54,13 @@ namespace MovementService
 
             var serviceBusClient = new ServiceBusClient(Environment.GetEnvironmentVariable("ServiceBusConnection"));
             var publisher = new MessagePublisher(serviceBusClient);
-            await publisher.Publish("queue", movement);
+            await publisher.Publish("queue", new Message
+            {
+                Amount = movement.Amount,
+                Type = movement.Type,
+                DateTime = movement.DateTime,
+                Email = account.Email,
+            });
 
             return new OkObjectResult(
                     new Models.Response<Movement>
