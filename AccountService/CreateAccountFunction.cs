@@ -9,7 +9,6 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using AccountService.Models;
 using Microsoft.Azure.Cosmos;
-using Azure.Messaging.ServiceBus;
 
 namespace AccountService
 {
